@@ -30,7 +30,7 @@ authors:
 abstract: "The ResNet benchmark of the JUPITER Benchmark Suite"
 identifiers:
   - type: doi
-    value: 10.5281/zenodo.12787776
+    value: 10.5281/zenodo.12788436
     description: Version-agnostic Zenodo Identifier
 repository-code: 'https://github.com/FZJ-JSC/jubench-resnet/'
 license: MIT
