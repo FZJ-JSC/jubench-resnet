@@ -1,0 +1,15 @@
+.sync.toml
+*.tar.gz
+.ipynb_checkpoints/*
+.*
+!/.gitignore
+*.png
+*.svg
+*.pdf
+*.jpg
+benchmark/raw-rundata/
+*.html
+*.sha256
+._*
+benchmark/jube/run/*
+run*

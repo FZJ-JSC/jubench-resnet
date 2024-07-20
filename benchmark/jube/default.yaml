@@ -1,0 +1,158 @@
+name: tf_resnet_benchmark
+outpath: run
+
+parameterset:
+  - name: globalParameter
+    parameter:
+      # For selecting things, currently not used
+      - name: systemname
+        mode: shell
+        _: "(cat /etc/FZJ/systemname 2>/dev/null || echo \"local\") | tr -d \"\\n\""
+      # Load these before doing anything
+      - name: modules
+        _: module load Stages/2022 ; module load GCC OpenMPI TensorFlow Horovod
+      - name: sourcebase
+        _: $jube_benchmark_home/../../src/
+  - name: systemParameter
+    init_with: platform.xml
+    parameter:
+      - name: env
+        _: $modules
+      - name: preprocess
+        separator: !
+        _: export HOROVOD_ENABLE_XLA_OPS=1; export CUDA_VISIBLE_DEVICES=0,1,2,3
+      - name: measurement
+        _: time -p
+      - name: nodes
+        _: 10
+        # _: 5,7,10,15,20  #strong scaling
+      - name: threadspertask
+        _: 4
+      - name: n_gpu
+        _: 4
+      - name: taskspernode
+        _: $n_gpu
+      - name: timelimit
+        _: 00:30:00
+      - name: account
+        _: jscbenchmark
+      - name: mail
+        _: ""
+      - name: queue
+        _: booster
+      - name: gres
+        _: gpu:$n_gpu
+      - name: additional_job_config
+        _: "####SBATCH --reservation bench-booster-2022-10-14-morning"
+      - name: args_exec
+        _: --model $model --batch_size $batch_size -variable_update $variable_update --use_fp16=$use_fp16 --xla_compile=$xla_compile # --data_dir=${data_dir} # commenting it makes it use random data
+      - name: executable
+        _: python $jube_benchmark_home/$jube_wp_relpath/download/tf_cnn_benchmarks/scripts/tf_cnn_benchmarks/tf_cnn_benchmarks.py
+      - name: postprocess
+        _: "# No post-processing needed"
+
+  - name: executeset
+    init_with: platform.xml
+    parameter:
+      - name: model
+        _: resnet50_v2
+      - name: batch_size
+        _: 512
+      - name: data_dir
+        _: /p/project/cjsc/benchmark/imagenet-processed/
+      - name: variable_update
+        _: horovod
+      - name: use_fp16
+        _: true
+      - name: xla_compile
+        _: true
+      - name: args_starter
+        _: --cpu_bind=none
+
+
+fileset:
+  - name: sourcescript
+    copy: ${sourcebase}/tf_cnn_benchmarks
+
+
+step:
+  - name: download
+    use:
+      - globalParameter
+      - sourcescript
+
+  - name: run
+    depend: download
+    use:
+      - systemParameter
+      - executeset
+      - from: platform.xml
+        _: jobfiles
+      - from: platform.xml
+        _: executesub
+    do:
+      done_file: $ready_file
+      _: $submit $submit_script
+
+patternset:
+  - name: images
+    pattern:
+    - name: imagespersec
+      type: float
+      _: "total images/sec: ${jube_pat_fp}"
+    - name: throughput_in_time
+      type: float
+      mode: python
+      _: "(90.0 * 1281167)/${imagespersec}"
+  - name: jobnumber
+    pattern:
+    - name: jobid
+      type: string
+      _: "Submitted batch job $jube_pat_int"
+  - name: runtimepattern
+    pattern:
+    - name: runtime
+      type: float
+      unit: s
+      _: "real $jube_pat_fp"
+    - name: error_code
+      type: int
+      _: "JUBE_ERR_CODE=$jube_pat_int"
+
+analyser:
+  - name: analyse
+    use: images
+    analyse:
+      step: run
+      file:
+        - {_: "job.out"}
+        - {_: "job.err", use: "runtimepattern"}
+        - {_: "stdout", use: "jobnumber"}
+
+result:
+  use: analyse
+  table:
+    - name: pretty
+      style: pretty
+      sort: jobid, error_code
+      column:
+        - jobid
+        - systemname
+        - error_code
+        - runtime
+        - batch_size
+        - nodes
+        - {title: "imagespersec_avg", format: ".2f", _: imagespersec_avg}
+        - {title: "time_to_report_in_seconds",format: ".2f", _: throughput_in_time}
+    - name: csv
+      style: csv
+      sort: jobid, error_code
+      column:
+        - jobid
+        - systemname
+        - error_code
+        - runtime
+        - batch_size
+        - nodes
+        - {title: "imagespersec_avg", format: ".2f", _: imagespersec_avg}
+        - {title: "time_to_report_in_seconds",format: ".2f", _: throughput_in_time}

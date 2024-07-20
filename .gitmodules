@@ -1,0 +1,3 @@
+[submodule "src/tf_cnn_benchmarks"]
+	path = src/tf_cnn_benchmarks
+	url = https://github.com/HelmholtzAI-FZJ/tf_cnn_benchmarks.git
